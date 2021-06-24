@@ -13,6 +13,7 @@ import torch.nn as nn
 from src.common.nn_modules import *
 import src.utils.utils as utils
 
+from src.trans_checker.args import args
 
 class EncoderDecoder(nn.Module):
     """
@@ -69,7 +70,7 @@ class EncoderDecoder(nn.Module):
 
     def get_segment_and_position_ids(self, encoder_input_ids):
         batch_size, input_size = encoder_input_ids.size()
-        position_ids = ops.arange_cuda(input_size).unsqueeze(0).expand_as(encoder_input_ids)
+        position_ids = ops.arange_cuda(input_size).unsqueeze(0).expand_as(encoder_input_ids) if args == 0 else ops.arange(input_size).unsqueeze(0).expand_as(encoder_input_ids)
         # [CLS] w1 w2 ... [SEP] * [T] ...
         # 0     0  0  ...  0  1 1 ...
         seg1_end_pos = torch.nonzero(encoder_input_ids == self.tu.sep_id)[:, 1].view(batch_size, 2)[:, 0]

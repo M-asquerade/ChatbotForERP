@@ -27,14 +27,16 @@ from src.semantic_parser.ensemble_configs import model_dirs as ensemble_model_di
 from src.semantic_parser.learn_framework import EncoderDecoderLFramework
 from src.trans_checker.args import args as cs_args
 import src.utils.utils as utils
+from google.cloud import speech
 
 import torch
+import io
 # if not args.data_parallel:
 #     torch.cuda.set_device('cuda:{}'.format(args.gpu))
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+sys.stdout = io.TextIOWrapper(buffer=sys.stdout.buffer,encoding='utf8')
+device = torch.device("cuda" if args.gpu == 0 else "cpu")
 
 # Set model ID
 args.model_id = utils.model_index[args.model]
@@ -308,6 +310,51 @@ def process_data():
     # build_vocab(args, dataset, dataset['schema'])
     preprocess(args, dataset, verbose=True)
 
+def demo_erp(args):
+    print("A Demo for erp system chatbot for product")
+    db_name = 'product'
+    data_dir = 'data\\spider'
+    # db_path = os.path.join(data_dir, db_name, '{}.sqlite'.format(db_name))
+    db_path = 'data/spider/database/product/product.sql'
+    print(db_path)
+    schema = SchemaGraph(db_name, db_path=db_path)
+    import json
+    in_json = os.path.join(args.data_dir, 'table_erp.json')
+    with open(in_json) as f:
+        tables = json.load(f)
+    for table in tables:
+        if table['db_id'] == db_name:
+            break
+    schema.load_data_from_spider_json(table)
+    schema.pretty_print()
+
+    # if args.ensemble_inference:
+    #     t2sql = Text2SQLWrapper(args, cs_args, schema, ensemble_model_dirs=ensemble_model_dirs)
+    # else:
+    t2sql = Text2SQLWrapper(args, cs_args, schema)
+    #
+    sys.stdout.write('Enter a natural language question: ')
+    sys.stdout.write('> ')
+    sys.stdout.flush()
+    text = sys.stdin.readline()
+    #
+    while text:
+        output = t2sql.process(text, schema.name)
+        translatable = output['translatable']
+        sql_query = output['sql_query']
+        confusion_span = output['confuse_span']
+        replacement_span = output['replace_span']
+        print('Translatable: {}'.format(translatable))
+        print('SQL: {}'.format(sql_query))
+        print('Confusion span: {}'.format(confusion_span))
+        print('Replacement span: {}'.format(replacement_span))
+        if sql_query and isinstance(sql_query,str):
+            result = schema.execute_query(sql_query)
+            print('The result of the query: {}'.format(result))
+        sys.stdout.flush()
+        sys.stdout.write('\nEnter a natural language question: ')
+        sys.stdout.write('> ')
+        text = sys.stdin.readline()
 
 def demo(args):
     """
@@ -362,13 +409,17 @@ def demo(args):
         print('SQL: {}'.format(sql_query))
         print('Confusion span: {}'.format(confusion_span))
         print('Replacement span: {}'.format(replacement_span))
-        sys.stdout.flush()
+        if sql_query and isinstance(sql_query,str):
+            result = schema.execute_query(sql_query)
+            print('The result of the query: "{}"'.format(result))
         sys.stdout.write('\nEnter a natural language question: ')
         sys.stdout.write('> ')
+        sys.stdout.flush()
         text = sys.stdin.readline()
 
 
 def run_experiment(args):
+    cs_args.gpu = args.gpu
     if args.process_data:
         process_data()
     elif args.ensemble_inference and not args.demo:
@@ -387,7 +438,8 @@ def run_experiment(args):
             else:
                 raise NotImplementedError
 
-            sp.cuda()
+            if args.gpu == 0:
+                sp.cuda()
             if args.train:
                 train(sp)
             elif args.inference:
@@ -398,9 +450,32 @@ def run_experiment(args):
                 demo(args)
             elif args.fine_tune:
                 fine_tune(sp)
+            elif args.demo_erp:
+                demo_erp(args)
             else:
                 print('No experiment specified. Exit now.')
                 sys.exit(1)
+
+def connectGoogleCloudSpeech():
+    # Instantiates a client
+    client = speech.SpeechClient()
+    # The name of the audio file to transcribe
+    gcs_uri = "gs://cloud-samples-data/speech/brooklyn_bridge.raw"
+
+    audio = speech.RecognitionAudio(uri=gcs_uri)
+
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=16000,
+        language_code="en-US",
+    )
+
+    # Detects speech in the audio file
+    response = client.recognize(config=config, audio=audio)
+
+    for result in response.results:
+        print("Transcript: {}".format(result.alternatives[0].transcript))
+
 
 
 if __name__ == '__main__':

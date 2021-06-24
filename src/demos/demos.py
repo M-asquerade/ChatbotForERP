@@ -31,7 +31,8 @@ def load_semantic_parser(args):
     else:
         raise NotImplementedError
     sp.load_checkpoint(get_checkpoint_path(args))
-    sp.cuda()
+    if args.gpu == 0:
+        sp.cuda()
     sp.eval()
     return sp
 
@@ -43,7 +44,8 @@ def load_confusion_span_detector(args):
     else:
         print('Warning: translatability checker checkpoint not specified')
         return None
-    tc.cuda()
+    if args.gpu == 0:
+        tc.cuda()
     tc.eval()
     return tc
 
@@ -123,7 +125,7 @@ class Text2SQLWrapper(object):
                                                     pred_restored_cache=self.pred_restored_cache,
                                                     model_ensemble=self.model_ensemble, verbose=False)
         if len(output['pred_decoded'][0]) > 1:
-            pred_sql = output['pred_decoded'][0][0]
+            pred_sql = output['pred_decoded'][0]
         else:
             pred_sql = None
         print('inference time: {:.2f}s'.format(time.time() - start_time))
@@ -144,9 +146,12 @@ class Text2SQLWrapper(object):
             translatable, confuse_span, replace_span = True, None, None
 
         sql_query = None
+        sql_query_opt = None
         if translatable:
             print('Translatable!')
-            sql_query = self.translate(example)
+            sql_query_set = self.translate(example)
+            sql_query = sql_query_set[0] if sql_query_set and len(sql_query_set)>1 else None
+            sql_query_opt= sql_query_set[1:3] if sql_query_set and len(sql_query_set)>3 else None
             if verbose:
                 print('Text: {}'.format(text))
                 print('SQL: {}'.format(sql_query))
@@ -159,6 +164,7 @@ class Text2SQLWrapper(object):
         output['sql_query'] = sql_query
         output['confuse_span'] = confuse_span
         output['replace_span'] = replace_span
+        output['sql_query_opt'] = sql_query_opt
         return output
 
     def add_schema(self, schema):

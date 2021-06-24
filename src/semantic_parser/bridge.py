@@ -27,6 +27,7 @@ import src.common.ops as ops
 from src.data_processor.sql.sql_operators import field_types
 from src.semantic_parser.seq2seq_ptr import PointerGenerator, RNNEncoder, RNNDecoder
 from src.utils.utils import BRIDGE
+from src.trans_checker.args import args
 
 
 class Bridge(PointerGenerator):
@@ -326,8 +327,9 @@ class BridgeDecoder(RNNDecoder):
         if pointer_context:
             p_pointer, attn_weights = pointer_context
         else:
-            p_pointer = ops.zeros_var_cuda([batch_size, 1, 1])
-            attn_weights = ops.zeros_var_cuda([batch_size, self.attn.num_heads, 1, encoder_hiddens.size(1)])
+            p_pointer = ops.zeros_var_cuda([batch_size, 1, 1]) if args.gpu ==0 else ops.zeros_var([batch_size, 1, 1])
+            attn_weights = ops.zeros_var_cuda([batch_size, self.attn.num_heads, 1, encoder_hiddens.size(1)]) \
+                if args.gpu == 0 else ops.zeros_var([batch_size, self.attn.num_heads, 1, encoder_hiddens.size(1)])
 
         outputs, hiddens = [], []
         seq_attn_weights = []
@@ -378,7 +380,8 @@ class BridgeDecoder(RNNDecoder):
             if encoder_ptr_value_ids is None:
                 point_gen_prob = torch.cat([(1 - p_pointer) * gen_prob, weighted_point_prob], dim=2)
             else:
-                gen_prob_zeros_pad = ops.zeros_var_cuda((batch_size, 1, encoder_hiddens.size(1)))
+                gen_prob_zeros_pad = ops.zeros_var_cuda((batch_size, 1, encoder_hiddens.size(1))) if args.gpu == 0 \
+                else  ops.zeros_var((batch_size, 1, encoder_hiddens.size(1)))
                 weighted_gen_prob = torch.cat([(1 - p_pointer) * gen_prob, gen_prob_zeros_pad], dim=2)
                 point_gen_prob = weighted_gen_prob.scatter_add_(index=encoder_ptr_value_ids.unsqueeze(1),
                                                                 src=weighted_point_prob, dim=2)

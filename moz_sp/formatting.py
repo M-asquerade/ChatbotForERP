@@ -71,7 +71,7 @@ def should_quote(identifier):
     """
     VALID = re.compile(r'[a-zA-Z_]\w*')
     return (identifier != '*' and
-            (not identifier in RESERVED) and
+            (not identifier in RESERVED.strRepr) and
             (not re.fullmatch(number_pattern, identifier)))
     # return (
     #     identifier != '*' and
@@ -260,8 +260,16 @@ class Formatter(SchemaGroundedTraverser):
         return '{0} LIKE {1}'.format(self.dispatch(pair[0]), self.dispatch(pair[1]))
 
     @debug_wrapper
+    def _ilike(self, pair):
+        return '{0} ILIKE {1}'.format(self.dispatch(pair[0]), self.dispatch(pair[1]))
+
+    @debug_wrapper
     def _nlike(self, pair):
         return '{0} NOT LIKE {1}'.format(self.dispatch(pair[0]), self.dispatch(pair[1]))
+
+    @debug_wrapper
+    def _nilike(self, pair):
+        return '{0} NOT ILIKE {1}'.format(self.dispatch(pair[0]), self.dispatch(pair[1]))
 
     @debug_wrapper
     def _is(self, pair):

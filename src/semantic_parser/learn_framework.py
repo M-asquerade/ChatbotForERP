@@ -178,6 +178,7 @@ class EncoderDecoderLFramework(LFramework):
                         if self.args.num_random_tables_added > 0:
                             table_po, field_po = formatted_batch[-1][i]
 
+
                     exp_output_strs, exp_output_scores, exp_seq_lens, exp_correct = [], [], [], []
 
                     if inline_eval:
@@ -200,6 +201,7 @@ class EncoderDecoderLFramework(LFramework):
                             post_processed_output = self.post_process_nn_output(
                                 beam_id, example.dataset_id, example, preds, schema, text_ptr_weights, p_pointers,
                                 table_po=table_po, field_po=field_po, verbose=verbose)
+                            # print(post_processed_output)
                             if post_processed_output:
                                 pred_sql = post_processed_output[0]
                                 # print('{}\t{}'.format(pred_sql, float(pred_scores[beam_id])))
@@ -221,6 +223,7 @@ class EncoderDecoderLFramework(LFramework):
                                     if check_schema_consistency_ and not schema_consistent:
                                         restored_pred = None
                                     pred_sql = restored_pred
+                                    # print("For test:",pred_sql)
                                 else:
                                     if check_schema_consistency_:
                                         if not moz_sp.check_schema_consistency(
@@ -501,6 +504,7 @@ class EncoderDecoderLFramework(LFramework):
                 assert(schema is not None)
                 try:
                     out_tokens = moz_sp.add_join_condition(out_tokens, schema)
+                    #Where
                 except ValueError as e:
                     if verbose:
                         print(str(e))

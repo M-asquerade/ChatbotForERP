@@ -13,6 +13,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from src.parse_args import args
+
 
 EPSILON = float(np.finfo(float).eps)
 HUGE_INT = 1e31
@@ -25,13 +27,15 @@ def merge_padded_seq_3D(hiddens1, masks1, hidden2, masks2):
     merged_size = seq_len1 + seq_len2
     max_merged_size = int(merged_size.max())
     res1 = max_merged_size - hiddens1.size(1)
-    merged_hiddens = torch.cat([hiddens1, zeros_var_cuda([batch_size, res1, hiddens1.size(2)])], dim=1)
-    scatter_index2 = seq_len1.unsqueeze(1) + batch_arange_cuda(batch_size, hidden2.size(1))
+    merged_hiddens = torch.cat([hiddens1, zeros_var_cuda([batch_size, res1, hiddens1.size(2)])], dim=1) \
+                    if args.gpu == 0 else torch.cat([hiddens1, zeros_var([batch_size, res1, hiddens1.size(2)])], dim=1)
+    scatter_index2 = seq_len1.unsqueeze(1) + batch_arange_cuda(batch_size, hidden2.size(1)) \
+                    if args.gpu == 0 else seq_len1.unsqueeze(1) + batch_arange(batch_size, hidden2.size(1))
     scatter_index_masks2 = (scatter_index2 < max_merged_size)
     scatter_index2 *= scatter_index_masks2.long()
     merged_hiddens.scatter_add_(index=scatter_index2.unsqueeze(2).expand_as(hidden2),
                                 src=hidden2 * scatter_index_masks2.unsqueeze(2).float(), dim=1)
-    merged_hidden_masks = batch_arange_cuda(batch_size, max_merged_size) >= merged_size.unsqueeze(1)
+    merged_hidden_masks = batch_arange_cuda(batch_size, max_merged_size) >= merged_size.unsqueeze(1) if args.gpu == 0 else batch_arange(batch_size, max_merged_size) >= merged_size.unsqueeze(1)
     return merged_hiddens, merged_hidden_masks
 
 
@@ -64,7 +68,7 @@ def batch_lookup_3D(M, idx):
     batch_size, seq_len, dim = M.size()
     _, sample_size = idx.size()
     M = M.view(batch_size*seq_len, dim)
-    offset = long_var_cuda(torch.arange(batch_size).unsqueeze(1))
+    offset = long_var_cuda(torch.arange(batch_size).unsqueeze(1)) if args.gpu == 0 else long_var(torch.arange(batch_size).unsqueeze(1))
     idx = idx + offset * seq_len
     idx = idx.view(-1)
     # [batch_size*sample_size, dim]
@@ -86,7 +90,7 @@ def batch_binary_lookup(M, b_idx, pad_value):
     pad_len = max_seq_len - seq_len
     max_pad_len = int(pad_len.max())
     M = torch.cat([M, fill_var_cuda([batch_size, max_pad_len], pad_value, dtype=M.dtype)], dim=1)
-    pad_b_idx = batch_arange_cuda(batch_size, max_pad_len) < pad_len
+    pad_b_idx = batch_arange_cuda(batch_size, max_pad_len) < pad_len if args.gpu == 0 else batch_arange(batch_size, max_pad_len) < pad_len
     b_idx = torch.cat([b_idx, pad_b_idx], dim=1)
     output = M[b_idx].view(batch_size, max_seq_len)
     return output, output_masks
@@ -104,11 +108,11 @@ def batch_binary_lookup_3D(M, b_idx, pad_value):
     hidden_dim = M.size(2)
     seq_len = b_idx.sum(1, keepdim=True)
     max_seq_len = int(seq_len.max())
-    output_masks = batch_arange_cuda(batch_size, max_seq_len) >= seq_len
+    output_masks = batch_arange_cuda(batch_size, max_seq_len) >= seq_len if args.gpu == 0 else batch_arange(batch_size, max_seq_len) >= seq_len
     pad_len = max_seq_len - seq_len
     max_pad_len = int(pad_len.max())
-    M = torch.cat([M, fill_var_cuda([batch_size, max_pad_len, hidden_dim], pad_value, dtype=M.dtype)], dim=1)
-    pad_b_idx = batch_arange_cuda(batch_size, max_pad_len) < pad_len
+    M = torch.cat([M, fill_var_cuda([batch_size, max_pad_len, hidden_dim], pad_value, dtype=M.dtype)], dim=1) if args.gpu == 0 else  torch.cat([M, fill_var([batch_size, max_pad_len, hidden_dim], pad_value, dtype=M.dtype)], dim=1)
+    pad_b_idx = batch_arange_cuda(batch_size, max_pad_len) < pad_len if args.gpu == 0 else batch_arange(batch_size, max_pad_len) < pad_len
     b_idx = torch.cat([b_idx, pad_b_idx], dim=1)
     output = M[b_idx].view(batch_size, max_seq_len, hidden_dim)
     return output, output_masks
@@ -184,7 +188,7 @@ def pad_and_cat(a, padding_value, padding_dim=1, dtype=torch.long, fill_empty_ba
         elif dtype == torch.int:
             a = [int_var_cuda(x) for x in a]
         elif dtype == torch.long:
-            a = [long_var_cuda(x) for x in a]
+            a = [long_var_cuda(x) for x in a] if args.gpu == 0 else [long_var(x) for x in a]
         else:
             a = [var_cuda(x) for x in a]
         return a
@@ -256,7 +260,7 @@ def pad_and_cat_matrices(a, padd_value, dtype=torch.long):
         elif dtype == torch.int:
             a = [int_var_cuda(x) for x in a]
         elif dtype == torch.long:
-            a = [long_var_cuda(x) for x in a]
+            a = [long_var_cuda(x) for x in a] if args.gpu == 0 else [long_var(x) for x in a]
         else:
             a = [var_cuda(x) for x in a]
         return a
@@ -319,7 +323,7 @@ def pad_batch_2D(batch_2D_seq_ids, pad_id, dtype=torch.long, output_2d_tensor=Fa
 
 def tile_along_beam(x, beam_size, dim=0):
     bs = x.size(dim)
-    tile_indices = arange_cuda(bs).view(bs, 1).repeat(1, beam_size).view(bs*beam_size)
+    tile_indices = arange_cuda(bs).view(bs, 1).repeat(1, beam_size).view(bs*beam_size) if args.gpu ==0 else arange(bs).view(bs, 1).repeat(1, beam_size).view(bs*beam_size)
     return torch.index_select(x, dim, tile_indices)
     # batch_size = len(x)
     # full_size = batch_size * beam_size
@@ -355,51 +359,79 @@ def positional_encodings_like(x, t=None):
                 positions / 10000 ** ((channel - 1) / x.size(2)))
     return encodings
 
+def arange(x, dtype=torch.long):
+    return torch.arange(x, dtype=dtype)
 
 def arange_cuda(x, dtype=torch.long):
     return torch.arange(x, dtype=dtype).cuda()
 
+def batch_arange(batch_size, x, dtype=torch.long):
+    return zeros_var(batch_size, dtype=dtype).unsqueeze(1) + \
+           arange(x, dtype=dtype).unsqueeze(0)
 
 def batch_arange_cuda(batch_size, x, dtype=torch.long):
     return zeros_var_cuda(batch_size, dtype=dtype).unsqueeze(1) + \
            arange_cuda(x, dtype=dtype).unsqueeze(0)
 
+def byte_ones_var(s, requires_grad=False):
+    return torch.ones(s, dtype=torch.uint8, requires_grad=requires_grad)
 
 def byte_ones_var_cuda(s, requires_grad=False):
     return torch.ones(s, dtype=torch.uint8, requires_grad=requires_grad).cuda()
 
+def ones_var(s, requires_grad=False, dtype=torch.float32):
+    return torch.ones(s, requires_grad=requires_grad, dtype=dtype)
 
 def ones_var_cuda(s, requires_grad=False, dtype=torch.float32):
     return torch.ones(s, requires_grad=requires_grad, dtype=dtype).cuda()
 
+def int_ones_var(s, requires_grad=False):
+    return torch.ones(s, dtype=torch.long, requires_grad=requires_grad)
 
 def int_ones_var_cuda(s, requires_grad=False):
     return torch.ones(s, dtype=torch.long, requires_grad=requires_grad).cuda()
 
+def zeros_like(x, requires_grad=False, dtype=torch.float32):
+    return torch.zeros_like(x, requires_grad=requires_grad, dtype=dtype)
 
 def zeros_like_cuda(x, requires_grad=False, dtype=torch.float32):
     return torch.zeros_like(x, requires_grad=requires_grad, dtype=dtype).cuda()
 
+def byte_zeros_var(s, requires_grad=False):
+    return torch.zeros(s, dtype=torch.uint8, requires_grad=requires_grad)
 
 def byte_zeros_var_cuda(s, requires_grad=False):
     return torch.zeros(s, dtype=torch.uint8, requires_grad=requires_grad).cuda()
 
+def zeros_var(s, requires_grad=False, dtype=torch.float32):
+    return torch.zeros(s, requires_grad=requires_grad, dtype=dtype)
 
 def zeros_var_cuda(s, requires_grad=False, dtype=torch.float32):
     return torch.zeros(s, requires_grad=requires_grad, dtype=dtype).cuda()
 
+def int_zeros_var(s, requires_grad=False):
+    return torch.zeros(s, dtype=torch.long, requires_grad=requires_grad)
 
 def int_zeros_var_cuda(s, requires_grad=False):
     return torch.zeros(s, dtype=torch.long, requires_grad=requires_grad).cuda()
 
+def int_fill_var(s, value, requires_grad=False):
+    return torch.zeros(s, dtype=torch.long, requires_grad=requires_grad) + value
 
 def int_fill_var_cuda(s, value, requires_grad=False):
     return torch.zeros(s, dtype=torch.long, requires_grad=requires_grad).cuda() + value
 
+def fill_var(s, value, dtype=None, requires_grad=False):
+    return torch.zeros(s, dtype=dtype, requires_grad=requires_grad) + value
 
 def fill_var_cuda(s, value, dtype=None, requires_grad=False):
     return torch.zeros(s, dtype=dtype, requires_grad=requires_grad).cuda() + value
 
+def byte_var(x, requires_grad=False):
+    tx = torch.ByteTensor(x)
+    if requires_grad:
+        tx.requires_grad_()
+    return tx
 
 def byte_var_cuda(x, requires_grad=False):
     tx = torch.ByteTensor(x).cuda()
@@ -407,6 +439,11 @@ def byte_var_cuda(x, requires_grad=False):
         tx.requires_grad_()
     return tx
 
+def int_var(x, requires_grad=False):
+    tx = torch.IntTensor(x)
+    if requires_grad:
+        tx.requires_grad_()
+    return tx
 
 def int_var_cuda(x, requires_grad=False):
     tx = torch.IntTensor(x).cuda()
@@ -414,6 +451,11 @@ def int_var_cuda(x, requires_grad=False):
         tx.requires_grad_()
     return tx
 
+def long_var(x, requires_grad=False):
+    tx = torch.LongTensor(x)
+    if requires_grad:
+        tx.requires_grad_()
+    return tx
 
 def long_var_cuda(x, requires_grad=False):
     tx = torch.LongTensor(x).cuda()

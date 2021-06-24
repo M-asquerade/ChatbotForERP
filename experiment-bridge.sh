@@ -2,6 +2,26 @@
 
 export PYTHONPATH="`pwd`;$PYTHONPATH"
 
+google_access_dir="./src/chatbotErp/google_access/"
+google_access_file=""
+speech_rec_flag=1
+
+if [[ ! -d $google_access_dir ]]; then
+  echo "Warning: Google access directory not exist"
+  speech_rec_flag=0
+elif [[ `ls $google_access_dir -l|grep "^-"|wc -l` != 1 ]]; then
+  echo "Waring: More than one pass in the directory"
+  speech_rec_flag=0
+else
+  google_access_file=$google_access_dir`ls $google_access_dir`
+fi
+
+if [[ "${google_access_file##*.}"x = "json"x ]]; then
+  export GOOGLE_APPLICATION_CREDENTIALS=$google_access_file
+else
+  echo "Warning: Google access file not VALID. It should end with json"
+  speech_rec_flag=0
+fi
 source $1
 exp=$2
 gpu=$3
@@ -120,7 +140,9 @@ if [[ $random_field_order = *"True"* ]]; then
     random_field_order_flag="--random_field_order"
 fi
 
-cmd="python3 -m src.experiments \
+#cmd1="python -m src.testAudio"
+#original python experiment path src.experiments
+cmd="python -m src.testAudio \
     $exp \
     --data_dir $data_dir \
     --db_dir $db_dir \
@@ -199,6 +221,7 @@ cmd="python3 -m src.experiments \
     --beam_size $beam_size \
     --bs_alpha $bs_alpha \
     --gpu $gpu \
+    --speech_recognition_available $speech_rec_flag \
     $ARGS"
 
 echo "run $cmd"

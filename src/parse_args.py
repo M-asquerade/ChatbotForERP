@@ -34,6 +34,8 @@ parser.add_argument('--fine_tune', action='store_true',
                     help='fine tuning model on a given dataset (default: False)')
 parser.add_argument('--demo', action='store_true',
                     help='run interactive commandline demo (default: False)')
+parser.add_argument('--demo_erp', action='store_true',
+                    help='run interactive commandline demo_erp (default: False)')
 parser.add_argument('--demo_db', type=str, default=None,
                     help='the database used in the interactive demo')
 parser.add_argument('--data_statistics', action='store_true',
@@ -62,7 +64,7 @@ parser.add_argument('--viz_dir', type=str, default=os.path.join(os.path.dirname(
 parser.add_argument('--save_all_checkpoints', action='store_true',
                     help='If set, save all checkpoints during training; otherwise, save the checkpoints w/ the best '
                          'dev performance only. (default: False)')
-parser.add_argument('--gpu', type=int, default=0, help='gpu device (default: 0)')
+parser.add_argument('--gpu', type=int, default=0, help='gpu device, 1 stands no gpu (default: 0)')
 
 # Leaderboard submission
 parser.add_argument('--leaderboard_submission', action='store_true',
@@ -311,5 +313,14 @@ parser.add_argument('--tune', type=str, default='',
 parser.add_argument('--grid_search', action='store_true',
                     help='Conduct grid search of hyperparameters')
 
+#Chatbot start mode by modules
+parser.add_argument('--recognition_only', type=int, default=0,
+                    help='If true, only launch the speech recognition part to debug')
+
+parser.add_argument('--text_to_sql_only', type=int, default=0,
+                    help='If true, only launch the text-to-sql part to debug')
+
+parser.add_argument('--speech_recognition_available', type=int, default=1,
+                    help='If true, the credential is added. If false, the environment variable not set')
 
 args = parser.parse_args()

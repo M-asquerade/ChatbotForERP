@@ -20,11 +20,11 @@ from src.parse_args import args
 
 import torch
 if not args.data_parallel:
-    torch.cuda.set_device(args.gpu)
+    torch.cuda.set_device(args.gpu if not args.gpu == 0 else 'cpu')
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if args.gpu == 0 else "cpu")
 
 # Set model ID
 if args.predict_tables:

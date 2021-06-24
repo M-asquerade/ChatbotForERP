@@ -10,6 +10,7 @@
 """
 
 from asciitree import LeftAligned
+import os
 import collections
 import csv
 import functools
@@ -20,6 +21,7 @@ import random
 import scipy.sparse as ssp
 import sqlalchemy
 import sqlite3
+import pg
 
 import src.common.ops as ops
 import src.common.content_encoder as ce
@@ -27,7 +29,7 @@ from src.data_processor.sql.sql_operators import field_types
 from src.data_processor.vocab_utils import Vocabulary
 from src.utils.utils import deprecated
 import src.utils.utils as utils
-
+from src.common.configuration import Configuration
 
 TABLE = 0
 FIELD = 1
@@ -244,6 +246,14 @@ class SchemaGraph(object):
 
         self.question_field_match_cache = dict()
 
+        #Connect to the database
+        #Postgresql by default, if not available, connect to local sqlite database
+        self.conn = self.connect_to_postgresql()
+        if self.conn:
+            self.db_postgre = True
+        else:
+            self.conn = sqlite3.connect(self.db_path)
+            self.db_postgre=False
 
     def get_table_id(self, signature):
         signature = utils.to_indexable(signature, self.caseless)
@@ -419,6 +429,7 @@ class SchemaGraph(object):
                             self.question_field_match_cache[key] = matches
                         if matches:
                             num_values_inserted = 0
+                            print(matches)
                             for match_str, (field_value, s_match_str, match_score, s_match_score, match_size) in matches:
                                 if 'name' in field_node.normalized_name and match_score * s_match_score < 1:
                                     continue
@@ -613,15 +624,21 @@ class SchemaGraph(object):
             field_node = self.get_field(field_id)
             field_name = field_node.name
             table_name = field_node.table.name
-            fetch_sql = 'SELECT `{}` FROM `{}`'.format(field_name, table_name)
-            conn = sqlite3.connect(self.db_path)
-            conn.text_factory = bytes
-            c = conn.cursor()
-            c.execute(fetch_sql)
+            fetch_sql = 'SELECT {} FROM {}'.format(field_name, table_name)
+            if self.db_postgre:
+                result = self.conn.query(fetch_sql)
+                list_result = result.getresult()
+            else:
+                self.conn.text_factory = bytes
+                c = self.conn.cursor()
+                c.execute(fetch_sql)
+                list_result = c.fetchall()
             picklist = set()
-            for x in c.fetchall():
+
+            for x in list_result:
                 if isinstance(x[0], str):
-                    picklist.add(x[0].encode('utf-8'))
+                    picklist.add(x[0])
+                    # picklist.add(x[0].encode('utf-8'))
                 elif isinstance(x[0], bytes):
                     try:
                         picklist.add(x[0].decode('utf-8'))
@@ -630,23 +647,28 @@ class SchemaGraph(object):
                 else:
                     picklist.add(x[0])
             self.picklists[field_id] = list(picklist)
-            conn.close()
         return self.picklists[field_id]
 
     def get_row(self, table_id, row_id=None, mask_fill=None):
         table_node = self.get_table(table_id)
         table_name = table_node.name
-        conn = sqlite3.connect(self.db_path)
-        conn.text_factory = bytes
-        c = conn.cursor()
+
         if row_id is None:
             # return a random row
-            c.execute('SELECT * from {} ORDER BY RANDOM() LIMIT 1'.format(table_name))
+            fetch_sql = 'SELECT * from {} ORDER BY RANDOM() LIMIT 1'.format(table_name)
         else:
             # return ith row
-            c.execute('SELECT * from {} LIMIT 1 OFFSET {}'.format(table_name, row_id))
-        row = c.fetchall()
-        conn.close()
+            fetch_sql = 'SELECT * from {} LIMIT 1 OFFSET {}'.format(table_name, row_id)
+
+        if self.db_postgre:
+            result = self.conn.query(fetch_sql)
+            row = result.getresult()
+        else:
+            self.conn.text_factory = bytes
+            c = self.conn.cursor()
+            c.execute(fetch_sql)
+            row = c.fetchall()
+
         if row:
             if mask_fill:
                 def replace_empty_with_mask(x):
@@ -665,12 +687,19 @@ class SchemaGraph(object):
         table_node = self.get_table(table_id)
         if table_node.num_rows is None:
             table_name = table_node.name
-            conn = sqlite3.connect(self.db_path)
-            conn.text_factory = bytes
-            c = conn.cursor()
-            c.execute('SELECT COUNT(*) FROM {}'.format(table_name))
-            table_node.num_rows = c.fetchall()[0][0]
-            conn.close()
+
+            fetch_sql = 'SELECT COUNT(*) FROM {}'.format(table_name)
+            if self.db_postgre:
+                result = self.conn.query(fetch_sql)
+                rows = result.getresult()
+            else:
+                self.conn.text_factory = bytes
+                c = self.conn.cursor()
+                c.execute(fetch_sql)
+                rows = c.fetchall()
+
+            table_node.num_rows = rows[0][0]
+            self.conn.close()
         return table_node.num_rows
 
     # --- Loaders --- #
@@ -986,6 +1015,52 @@ class SchemaGraph(object):
     def pretty_print(self):
         tr = LeftAligned()
         print(tr(self.printable))
+
+    def connect_to_postgresql(self):
+        conf = Configuration()
+        return pg.DB(host=conf.database_host(),
+                     user=conf.database_user(),
+                     passwd=conf.database_password(),
+                     dbname=conf.database_name(),
+                     port=conf.database_port())\
+        if os.path.splitext(self.db_path)[1] == '.sql' else False
+            # return pg.DB(host='localhost', user='openpg', passwd='openpgpwd', dbname='ERP_DB') \
+        # if os.path.splitext(self.db_path)[1] == '.sql' else False
+        # if os.path.splitext(self.db_path) == '.sql':
+        #     myConnection = pg.DB(host='localhost', user='openpg', passwd='openpgpwd', dbname='ERP_DB')
+        #     return myConnection
+        # else:
+        #     return False
+
+    def close_db_connnection(self):
+        self.conn.close()
+
+    def execute_query(self,query):
+        if self.db_postgre:
+        #Connect to postgreSQL
+            error_state = 1
+            try:
+                result = self.conn.query(query)
+                list_result = result.getresult()
+            except (pg.DataError,pg.ProgrammingError):
+                print("Jarvis: error in query. Please say your request again")
+                list_result = None
+                error_state = 0
+            except pg.InternalError:
+                print("Jarvis: error during query processing")
+                list_result = None
+                error_state = 0
+            except TypeError or ValueError:
+                print("bad connection or bad argument type")
+                list_result = None
+                error_state = 0
+        else:
+        #Other database
+            self.conn.text_factory = bytes
+            c = self.conn.cursor()
+            c.execute(query)
+            list_result = c.fetchall()
+        return list_result,error_state
 
     @property
     def base_name(self):

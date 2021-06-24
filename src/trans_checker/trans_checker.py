@@ -28,7 +28,7 @@ from src.trans_checker.args import args
 from src.utils.trans import bert_utils as bu
 import src.utils.utils as utils
 
-torch.cuda.set_device('cuda:{}'.format(args.gpu))
+# torch.cuda.set_device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() else "cpu")
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 
@@ -72,7 +72,7 @@ class TranslatabilityChecker(nn.Module):
         segment_ids, position_ids = self.get_segment_and_position_ids(inputs)
         inputs_embedded, _ = self.transformer_encoder(inputs, input_masks,
                                                       segments=segment_ids, position_ids=position_ids)
-        text_masks = torch.cat([ops.zeros_var_cuda([batch_size, 1]), text_masks.float()], dim=1)
+        text_masks = torch.cat([ops.zeros_var_cuda([batch_size, 1]), text_masks.float()], dim=1) if args.gpu == 0 else torch.cat([ops.zeros_var([batch_size, 1]), text_masks.float()], dim=1)
         text_embedded = inputs_embedded[:, :text_masks.size(1), :]
         output = self.translatability_pred(text_embedded[:, 0, :])
         span_extractor_output = self.span_extractor(text_embedded, text_masks)
@@ -96,19 +96,19 @@ class TranslatabilityChecker(nn.Module):
             end_logit = span_extract_output[:, 1, :]
             # [batch_size, encoder_seq_len, encoder_seq_len]
             span_logit = start_logit.unsqueeze(2) + end_logit.unsqueeze(1)
-            valid_span_pos = ops.ones_var_cuda([len(span_logit), encoder_seq_len, encoder_seq_len]).triu()
+            valid_span_pos = ops.ones_var_cuda([len(span_logit), encoder_seq_len, encoder_seq_len]).triu() if args.gpu ==0 else ops.ones_var([len(span_logit), encoder_seq_len, encoder_seq_len]).triu()
             span_logit = span_logit - (1 - valid_span_pos) * ops.HUGE_INT
 
             for i in range(len(mini_batch)):
                 span_pos = span_logit[i].argmax()
-                start = int(span_pos / encoder_seq_len)
+                start = int(span_pos // encoder_seq_len)
                 end = int(span_pos % encoder_seq_len)
                 output_spans.append((start, end))
         return torch.cat(outputs), output_spans
 
     def get_segment_and_position_ids(self, encoder_input_ids):
         batch_size, input_size = encoder_input_ids.size()
-        position_ids = ops.arange_cuda(input_size).unsqueeze(0).expand_as(encoder_input_ids)
+        position_ids = ops.arange_cuda(input_size).unsqueeze(0).expand_as(encoder_input_ids) if args.gpu == 0 else ops.arange(input_size).unsqueeze(0).expand_as(encoder_input_ids)
         # [CLS] t1 t2 ... [SEP] ...
         # 0     0  0  ...  0    ...
         seg1_sizes = torch.nonzero(encoder_input_ids == bu.sep_id)[:, 1].view(batch_size, 2)[:, 0] + 1

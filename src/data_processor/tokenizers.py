@@ -401,8 +401,27 @@ def trans_de_tokenize(tokens, tu,
         for i, token in enumerate(tokens):
             if token == '<>':
                 tokens[i] = '!='
+    # Where fuzzy match
+    # print(tokens)
+    for  i in range(len(tokens)):
+        if tokens[i]=='where' and len(tokens) > i+3 and not tokens[i+3].isnumeric():
+            if tokens[i+2]=='=':
+                tokens[i+2] = 'ilike '
+            elif tokens[i+2]=='!=':
+                tokens[i+2] = 'not ilike '
+            if len(tokens) > i+8 and tokens [i+6] == 'and':
+                if tokens[i + 8] == '=':
+                    tokens[i + 8] = 'ilike '
+                elif tokens[i + 8] == '!=':
+                    tokens[i + 8] = 'not ilike '
+            # tokens[i+1]='upper('+tokens[i+1]+')'
+            # tokens[i+4]='upper('+tokens[i+4]+')'
+            # tokens[i+5]=''
+            # tokens[i+3]=''
+    # print(tokens)
 
     out = tu.tokenizer.convert_tokens_to_string(tokens)
+    # print(out)
     if process_quote:
         parts = out.split('"')
         new_out = ''
@@ -410,7 +429,8 @@ def trans_de_tokenize(tokens, tu,
             if i % 2 == 0:
                 new_out += part
             else:
-                new_out += '"{}"'.format(part.strip())
+                #For postgreSQL, single quote should be used
+                new_out += '\'{}\''.format(part.strip())
         out = new_out
 
         out = out.replace(" 's", "'s")
@@ -443,9 +463,8 @@ def trans_de_tokenize(tokens, tu,
         out = out.replace(' _ ', '_')
     if process_dash:
         out = out.replace(' - ', '-')
-
+    # print(out)
     return out
-
 
 def revtok_de_tokenize(tokens):
     return revtok.detokenize(tokens)

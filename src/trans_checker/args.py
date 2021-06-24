@@ -73,5 +73,5 @@ parser.add_argument('--xavier_initialization', type=bool, default=True,
 parser.add_argument('--gpu', type=int, default=0, help='gpu device (default: 0)')
 parser.add_argument('--seed', type=int, default=543, metavar='S', help='random seed (default: 543)')
 
-args = ['--gpu', '0']
+args = []
 args = parser.parse_args(args)

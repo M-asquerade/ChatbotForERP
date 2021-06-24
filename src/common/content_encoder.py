@@ -79,6 +79,7 @@ def get_effecitve_match_source(s, start, end):
 
 
 def get_matched_entries(s, field_values, m_theta=0.85, s_theta=0.85):
+    ("show the field values:",field_values)
     if not field_values:
         return None
 

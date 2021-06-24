@@ -8,7 +8,6 @@ n2w
 matplotlib==3.0.2
 transformers==2.8.0
 asciitree
-apex
 nltk==3.4.5
 rapidfuzz==0.9.1
 

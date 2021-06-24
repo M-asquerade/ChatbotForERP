@@ -25,8 +25,8 @@ from pyparsing import Combine, Forward, Group, Keyword, Literal, Optional, Parse
 
 from moz_sp.debugs import debug, DEBUG
 from moz_sp.keywords import AND, AS, ASC, BETWEEN, CASE, COLLATE_NOCASE, CROSS_JOIN, DESC, ELSE, END, FROM, \
-    FULL_JOIN, FULL_OUTER_JOIN, GROUP_BY, HAVING, IN, INNER_JOIN, IS, IS_NOT, JOIN, LEFT_JOIN, LEFT_OUTER_JOIN, LIKE, \
-    LIMIT, NOT_BETWEEN, NOT_IN, NOT_LIKE, OFFSET, ON, OR, ORDER_BY, RESERVED, RIGHT_JOIN, RIGHT_OUTER_JOIN, SELECT, \
+    FULL_JOIN, FULL_OUTER_JOIN, GROUP_BY, HAVING, IN, INNER_JOIN, IS, IS_NOT, ILIKE, JOIN, LEFT_JOIN, LEFT_OUTER_JOIN, LIKE, \
+    LIMIT, NOT_BETWEEN, NOT_IN, NOT_LIKE, OFFSET, ON, OR, ORDER_BY, RESERVED, RIGHT_JOIN, RIGHT_OUTER_JOIN, SELECT, NOT_ILIKE,\
     THEN, UNION, UNION_ALL, EXCEPT, INTERSECT, USING, WHEN, WHERE, binary_ops, unary_ops, WITH, durations
 
 ParserElement.enablePackrat()
@@ -70,7 +70,9 @@ KNOWN_OPS = [
     IS_NOT.setName("neq").setDebugActions(*debug),
     IS.setName("is").setDebugActions(*debug),
     LIKE.setName("like").setDebugActions(*debug),
+    ILIKE.setName("ilike").setDebugActions(*debug),
     NOT_LIKE.setName("nlike").setDebugActions(*debug),
+    NOT_ILIKE.setName("nilike").setDebugActions(*debug),
     AND.setName("and").setDebugActions(*debug),
     OR.setName("or").setDebugActions(*debug)
 ]
@@ -81,7 +83,6 @@ def to_json_operator(instring, tokensStart, retTokens):
     op = tok[1]
     clean_op = op.lower()
     clean_op = binary_ops.get(clean_op, clean_op)
-
     for o in KNOWN_OPS:
         if isinstance(o, tuple):
             # TRINARY OPS
@@ -111,7 +112,6 @@ def to_json_operator(instring, tokensStart, retTokens):
             return {"missing": tok[0]}
         else:
             return {"exists": tok[0]}
-
 
     operands = [tok[0], tok[2]]
     simple = {clean_op: operands}
@@ -340,7 +340,6 @@ expr << Group(infixNotation(
         )
     ]
 ).setName("expression").setDebugActions(*debug))
-
 # SQL STATEMENT
 selectColumn = Group(
     Group(expr).setName("expression1")("value").setDebugActions(*debug) + Optional(Optional(AS) + ident.copy().setName("column_name1")("name").setDebugActions(*debug)) |

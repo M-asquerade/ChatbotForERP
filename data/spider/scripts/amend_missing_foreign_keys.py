@@ -27,24 +27,29 @@ def amend_missing_foreign_keys():
     tables = load_spider_tables(table_path)
 
     num_foreign_keys_added = 0
+    # for idx, table in enumerate(tables):
     for table in tables:
         c_dict = collections.defaultdict(list)
         for i, c in enumerate(table['column_names_original']):
             c_name = c[1].lower()
+            #Field to index dict, more than one indexes may be
             c_dict[c_name].append(i)
         primary_keys = table['primary_keys']
-        # print(primary_keys)
+        #print(primary_keys)
         foreign_keys = set([tuple(sorted(x)) for x in table['foreign_keys']])
+        #print(foreign_keys)
         for c_name in c_dict:
             if c_name in ['name', 'id', 'code']:
                 continue
             if len(c_dict[c_name]) > 1:
+        #traverse all index pairs，check if two colomns can be a foreign keys pair(one of the column names is a primary key)
                 for p, q in itertools.combinations(c_dict[c_name], 2):
                     if p in primary_keys or q in primary_keys:
                         if not (p, q) in foreign_keys:
                             foreign_keys.add((p, q))
                             print('added: {}-{}, {}-{}'.format(p, table['column_names_original'][p],
                                                                q, table['column_names_original'][q]))
+                            # print('in table{}'.format(idx))
                             num_foreign_keys_added += 1
                             # if num_foreign_keys_added % 10 == 0:
                             #     import pdb

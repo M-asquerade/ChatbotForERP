@@ -8,12 +8,12 @@
 """
 
 import numpy as np
-
 import torch
 
 import src.common.ops as ops
 from src.utils.utils import SEQ2SEQ, SEQ2SEQ_PG, BRIDGE
 
+from src.trans_checker.args import args
 
 def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size, encoder_final_hidden,
                 encoder_hiddens=None, encoder_masks=None, encoder_ptr_value_ids=None, constant_hiddens=None,
@@ -29,7 +29,9 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
         memory_size = constant_seq_len + schema_seq_len
         memory_max_size = int(max(memory_size))
         memory_input_constant_masks = (ops.batch_arange_cuda(batch_size, memory_max_size) <
-                                       constant_seq_len.unsqueeze(1)).long()
+                                       constant_seq_len.unsqueeze(1)).long() if args.gpu ==0 else \
+                                        (ops.batch_arange(batch_size, memory_max_size) <
+                                         constant_seq_len.unsqueeze(1)).long()
         memory_input_schema_masks = 1 - memory_input_constant_masks
         memory_inputs = memory_input_constant_masks * decoder.vocab.value_id + \
                         memory_input_schema_masks * decoder.vocab.field_id
@@ -40,8 +42,10 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
         memory_inputs = memory_inputs.view(batch_size, memory_max_size)
 
         memory_input_table_masks = (memory_inputs == decoder.vocab.table_id).long()
-        memory_input_field_masks = ops.int_ones_var_cuda(memory_input_table_masks.size()) if no_from else \
-                                   ops.int_zeros_var_cuda(memory_input_table_masks.size())
+        memory_input_field_masks = (ops.int_ones_var_cuda(memory_input_table_masks.size()) if no_from else \
+                                   ops.int_zeros_var_cuda(memory_input_table_masks.size())) if args.gpu == 0 else \
+            (ops.int_ones_var(memory_input_table_masks.size()) if no_from else \
+                 ops.int_zeros_var(memory_input_table_masks.size()))
         return memory_inputs, memory_input_table_masks, memory_input_field_masks, memory_input_constant_masks
 
     def get_vocab_cat_masks():
@@ -93,7 +97,7 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
     digit_s3_id = decoder.vocab.to_idx('##3')
     digit_s4_id = decoder.vocab.to_idx('##4')
     digit_s5_id = decoder.vocab.to_idx('##5')
-    seen_eos = ops.byte_zeros_var_cuda([full_size, 1])
+    seen_eos = ops.byte_zeros_var_cuda([full_size, 1]) if args.gpu ==0 else ops.byte_zeros_var([full_size, 1])
     seq_len = 0
 
     if type(encoder_final_hidden) is tuple:
@@ -116,7 +120,8 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
             # vocab_mask[decoder.vocab.to_idx('from')] = 1
             # vocab_mask[decoder.vocab.to_idx('(')] = 1
             # v_clause_mask, v_op_mask, v_join_mask, v_others_mask = get_vocab_cat_masks()
-            memory_masks = ops.int_zeros_var_cuda([batch_size, memory_inputs.size(1)])
+            memory_masks = ops.int_zeros_var_cuda([batch_size, memory_inputs.size(1)]) if args.gpu == 0 else \
+                            ops.int_zeros_var([batch_size, memory_inputs.size(1)])
 
             table_pos, table_field_scopes = db_scope
             table_memory_pos = constant_seq_len.unsqueeze(1) * (table_pos > 0).long() + table_pos
@@ -190,7 +195,10 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
                     # [full_size, 3 (table, field, value）]
                     input_types = ops.long_var_cuda([decoder.vocab.table_id,
                                                      decoder.vocab.field_id,
-                                                     decoder.vocab.value_id]).unsqueeze(0).expand([input_.size(0), 3])
+                                                     decoder.vocab.value_id]).unsqueeze(0).expand([input_.size(0), 3]) if args.gpu ==0 else \
+                                    ops.long_var([decoder.vocab.table_id,
+                                                       decoder.vocab.field_id,
+                                                       decoder.vocab.value_id]).unsqueeze(0).expand([input_.size(0), 3])
                     # [full_size, 4 (vocab, table, field, value)]
                     input_type = torch.cat([vocab_mask, (input_ == input_types).long()], dim=1)
                     # [full_size, max_num_tables], [full_size, max_num_tables, max_num_fields_per_table]
@@ -214,7 +222,8 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
                         # assert (db_scope_update.max() <= 1)
                         # *
                         m_field_masks.scatter_(index=constant_seq_len.unsqueeze(1),
-                                               src=ops.int_ones_var_cuda([batch_size*beam_size, 1]), dim=1)
+                                               src=ops.int_ones_var_cuda([batch_size*beam_size, 1]) if args.gpu ==0 else ops.int_ones_var([batch_size*beam_size, 1]),
+                                               dim=1)
                         m_field_masks.scatter_add_(index=db_scope_update_idx, src=db_scope_update_mask.long(), dim=1)
                         m_field_masks = (m_field_masks > 0).long()
                     # Heuristics:
@@ -234,7 +243,8 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
             input_embedded = decoder_embeddings(input_)
         else:
             if start_embedded is None:
-                input = ops.int_fill_var_cuda([full_size, 1], start_id)
+                input = ops.int_fill_var_cuda([full_size, 1], start_id) if args.gpu ==0 else \
+                    ops.int_fill_var([full_size, 1], start_id)
                 input_embedded = decoder_embeddings(input)
             else:
                 raise NotImplementedError
@@ -272,10 +282,13 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
         # [full_size, vocab_size]
         if i == 0:
             raw_scores = \
-                output + (ops.arange_cuda(beam_size).repeat(batch_size) > 0).float().unsqueeze(1) * (-ops.HUGE_INT)
+                output + (ops.arange_cuda(beam_size).repeat(batch_size) > 0).float().unsqueeze(1) * (-ops.HUGE_INT) \
+                if args.gpu == 0 else \
+                    output + (ops.arange(beam_size).repeat(batch_size) > 0).float().unsqueeze(1) * (-ops.HUGE_INT)
         else:
             raw_scores = (pred_score * len_norm_factor + output * (1 - seen_eos.float())) / n_len_norm_factor
-            eos_mask = ops.ones_var_cuda([1, vocab_size])
+            eos_mask = ops.ones_var_cuda([1, vocab_size]) if args.gpu == 0 else \
+                    ops.ones_var([1, vocab_size])
             eos_mask[0, eos_id] = 0
             raw_scores += (seen_eos.float() * eos_mask) * (-ops.HUGE_INT)
 
@@ -285,7 +298,8 @@ def beam_search(alpha, model, decoder, decoder_embeddings, num_steps, beam_size,
         # [batch_size, beam_size]
         log_pred_prob, pred_idx = torch.topk(raw_scores, beam_size, dim=1)
         # [full_size]
-        beam_offset = (pred_idx // vocab_size + ops.arange_cuda(batch_size).unsqueeze(1) * beam_size).view(-1)
+        beam_offset = (pred_idx // vocab_size + ops.arange_cuda(batch_size).unsqueeze(1) * beam_size).view(-1) \
+        if args.gpu ==0 else (pred_idx // vocab_size + ops.arange(batch_size).unsqueeze(1) * beam_size).view(-1)
         # [full_size, 1]
         pred_idx = (pred_idx % vocab_size).view(full_size, 1)
         log_pred_prob = log_pred_prob.view(full_size, 1)

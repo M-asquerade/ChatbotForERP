@@ -31,10 +31,12 @@ JOIN = None
 LEFT_JOIN = None
 LEFT_OUTER_JOIN = None
 LIKE = None
+ILIKE = None
 LIMIT = None
 NOT_BETWEEN = None
 NOT_IN = None
 NOT_LIKE = None
+NOT_ILIKE = None
 OFFSET = None
 ON = None
 OR = None
@@ -100,6 +102,8 @@ binary_ops = {
     "is not": "neq",
     "is": "eq",
     "not like": "nlike",
+    "ilike":"ilike",
+    "not ilike":"nilike",
     "not between": "not_between",
     "or":"or",
     "and":"and"
@@ -126,7 +130,9 @@ precedence = {
     "nin": 8,
     "is": 8,
     "like": 8,
+    "ilike": 8,
     "nlike": 8,
+    "nilike": 8,
     "and": 10,
     "or": 11
 }

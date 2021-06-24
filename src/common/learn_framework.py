@@ -345,7 +345,8 @@ class LFramework(nn.Module):
 
     # --- Data I/O --- #
     def load_pred_restored_cache(self):
-        split = 'test' if self.args.test else 'dev'
+        split = 'test' if self.args.test else \
+            'dev'
         pred_restored_cache_path = os.path.join(
             self.model_dir, '{}.eo.pred.restored.pkl'.format(split))
         if os.path.exists(pred_restored_cache_path):
@@ -415,7 +416,7 @@ class LFramework(nn.Module):
         """
         if os.path.isfile(input_file):
             print('=> loading checkpoint \'{}\''.format(input_file))
-            checkpoint = torch.load(input_file)
+            checkpoint = torch.load(input_file,map_location=torch.device('cpu'))
             self.load_state_dict(checkpoint['model_state_dict'])
             if self.args.train:
                 self.start_step = checkpoint['interval_step_id'] + 1
