@@ -22,7 +22,7 @@ Our model takes a natural language utterance and a database (schema + field pick
 - **Preprocessing:** We concatenate the serialized database schema with the utterance to form a tagged sequence. A [fuzzy string matching algorithm](src/common/content_encoder.py) is used to identify picklist items mentioned in the utterance. The mentioned picklist items are appended to the corresponding field name in the tagged sequence.
 - **Translating:** The hybrid sequence is passed through the BRIDGE model, which output raw program sequences with probability scores via beam search.
 - **Postprocessing:** The raw program sequences are passed through a SQL checker, which verifies its syntactical correctness and schema consistency. Sequences that failed to pass the checker are discarded from the output.
-The postprocess  
+The postprocess is adapted to the speech recognition.
 
 ## Quick Start
 
@@ -30,8 +30,8 @@ The postprocess
 
 Our implementation has been tested using Pytorch 1.7 and Cuda 11.0 with a single GPU.
 ```
-git clone https://github.com/salesforce/TabularSemanticParsing
-cd TabularSemanticParsing
+git clone https://github.com/M-asquerade/ChatbotForERP
+cd ChatbotForERP
 
 pip install torch torchvision
 python3 -m pip install -r requirements.txt
@@ -42,7 +42,8 @@ python3 -m pip install -r requirements.txt
 export PYTHONPATH=`pwd` && python -m nltk.downloader punkt
 ```
 
-### Process Data
+### Process Data For the text-to-SQL
+The following process is used to test the performance of text-to-SQL deep learning model, which is not neccessary for the chatbot for ERP.
 
 #### Spider
 
@@ -130,7 +131,7 @@ To decode with model ensemble, first list the checkpoint directories of the indi
 ./experiment-bridge.sh configs/bridge/spider-bridge-bert-large.sh --ensemble_inference 0
 ```
 
-### Commandline Demo
+### Commandline Demo for text-to-SQL
 You can interact with a pre-trained checkpoint through the commandline using the following commands:
 
 #### Spider
@@ -197,7 +198,45 @@ If you find the resource in this repository helpful, please cite
 ```
 
 
-# Chatbot For ERP
+# Instruction for chatbot
+
+To run the full voice chatbot for ERP, you need a trained model of text-to-SQL, a google access token for google speech recognition service and the database table schema for ERP.
 
 ##Model
-To run the chatbot, you need a trained model of text-to-SQL. 
+Find the model of the text-to-SQL which ends with .tar and move it into the model directory.<br>
+The best model trained has 66% accuracy with the exact match.
+```
+mv model-best.66.tar model/
+```
+
+##Google speech recognition access
+Move the access token into a directory google_access and move it into chatbotErp.<br>
+The google_access directory should only include one file(one access).
+```
+mv google_access/ src/chatbotErp
+```
+
+##Database schema
+The database schema should be in json format and be the same as the format of Spider schema.
+```
+mv table_erp.json data/
+``` 
+
+## Launch the chatbot for ERP
+```
+cd ChatbotForERP/
+#The last 1 parametre stands for the gpu off. The program is totally calculated on CPU.
+./experiment-bridge.sh configs/bridge/spider-bridge-bert-large.sh --demo_erp 1 --checkpoint_path ./model/model-best.66.tar 1
+```
+
+###Apply only text-to-SQL
+When the speech recognition is not available or we want to test the text-to-SQL performance, run the following code.
+```
+./experiment-bridge.sh configs/bridge/spider-bridge-bert-large.sh --demo_erp 1 --checkpoint_path ./model/model-best.66.tar 1
+```
+
+###Apply only speech recognitino
+When the connnection to google is needed, run the following code.
+```
+./experiment-bridge.sh configs/bridge/spider-bridge-bert-large.sh --demo_erp 1 --checkpoint_path ./model/model-best.66.tar --recognition_only 1
+```
