@@ -117,7 +117,7 @@ def build_foreign_key_map_from_json(table):
     for entry in data:
         tables[entry['db_id']] = build_foreign_key_map(entry)
     return tables
-kmaps = build_foreign_key_map_from_json(table)
+# kmaps = build_foreign_key_map_from_json(table)
 
 
 def condition_has_or(conds):

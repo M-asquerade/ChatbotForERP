@@ -13,10 +13,9 @@ from src.demos.demos import Text2SQLWrapper
 #Chat state code
 NON_CHAT_STATE=0
 CHAT_STATE=1
-#Chatbot launch mode
-# NOMINAL=0
-# SPEECH_ONLY=1
-# TEXT_ONLY=2
+
+#Database schema file name
+DATABASE_SCHEMA_FILENAME='table_erp.json'
 
 # Audio recording parameters
 RATE = 16000
@@ -69,7 +68,7 @@ class Chatbot():
             sys.stdout.write("Text-to-SQL model is initializing.......\n")
             sys.stdout.flush()
             self.schema = SchemaGraph(db_name, db_path=db_path)
-            in_json = os.path.join(args.data_dir, 'table_erp.json')
+            in_json = os.path.join(args.data_dir, DATABASE_SCHEMA_FILENAME)
             with open(in_json) as f:
                 tables = json.load(f)
             for table in tables:
@@ -89,7 +88,17 @@ class Chatbot():
 
 
     def text_to_sql(self, text):
+        '''
+        This function translates the natural language query to SQL.
+        The print function makes the output on the commandline. A new redirection can show the query on other software
+        or interface.
+
+
+        :param text: The query of text
+        :return: None
+        '''
         if text:
+            # run Text-to-SQL and Postprocess the SQL translated
             output = self.t2sql.process(text, self.schema.name)
             translatable = output['translatable']
             sql_query = output['sql_query']
@@ -103,7 +112,7 @@ class Chatbot():
             if not translatable:
                 print("Javis: Not translatable")
             elif sql_query and isinstance(sql_query, str):
-                # try:
+                #Exectue the query.
                 result,error_state = self.schema.execute_query(sql_query)
                 if error_state:
                     if result:
@@ -131,6 +140,9 @@ class Chatbot():
             text = sys.stdin.readline()
 
     def start_conversation(self):
+        """
+        The conversation loop for the chatbot. This function starts the speech recognition.
+        """
         if self.text_only:
             self.text_to_sql_loop()
         else:
@@ -207,6 +219,10 @@ class Chatbot():
                 num_chars_printed = 0
 
     def state_transition(self, transcript, overwrite_chars):
+        """
+        This function defines the transition of state for the chatbot. There are three states right now: Non_chat_state
+        of 'hello' and 'goodbye', chat_state of text_to_SQL. More states are possible to make the chatbot conversational.
+        """
         if re.search(r"\b(hello|hi|jarvis)\b", transcript, re.I) and self.state == NON_CHAT_STATE:
             self.state = CHAT_STATE
             sys.stdout.write("You: "+transcript+"\n")

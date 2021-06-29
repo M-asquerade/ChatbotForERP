@@ -1,10 +1,10 @@
-# Bridging Textual and Tabular Data for Cross-Domain Text-to-SQL Semantic Parsing
+# Chatbot For ERP
 
-This is the official code release of the following paper:
+This is the code release of the chatbot for ERP. The text-to-SQL core is based on the deep learning model bridge. The reference is as followed:
 
 Xi Victoria Lin, Richard Socher and Caiming Xiong. [Bridging Textual and Tabular Data for Cross-Domain Text-to-SQL Semantic Parsing](https://arxiv.org/abs/2012.12627). Findings of EMNLP 2020.
 
-## Overview
+## Text-to-SQL
 
 Cross-domain tabular semantic parsing (X-TSP) is the task of predicting the executable structured query language given a natural language question issued to some database. The model may or may not have seen the target database during training.
 
@@ -22,6 +22,7 @@ Our model takes a natural language utterance and a database (schema + field pick
 - **Preprocessing:** We concatenate the serialized database schema with the utterance to form a tagged sequence. A [fuzzy string matching algorithm](src/common/content_encoder.py) is used to identify picklist items mentioned in the utterance. The mentioned picklist items are appended to the corresponding field name in the tagged sequence.
 - **Translating:** The hybrid sequence is passed through the BRIDGE model, which output raw program sequences with probability scores via beam search.
 - **Postprocessing:** The raw program sequences are passed through a SQL checker, which verifies its syntactical correctness and schema consistency. Sequences that failed to pass the checker are discarded from the output.
+The postprocess  
 
 ## Quick Start
 
@@ -195,5 +196,8 @@ If you find the resource in this repository helpful, please cite
 }
 ```
 
-## Related Links
-The parser has been integrated in the Photon web demo: http://naturalsql.com/. Please visit our website to test it live and try it on your own databases!
+
+# Chatbot For ERP
+
+##Model
+To run the chatbot, you need a trained model of text-to-SQL. 
