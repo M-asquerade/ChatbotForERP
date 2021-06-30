@@ -142,7 +142,7 @@ fi
 
 #cmd1="python -m src.testAudio"
 #original python experiment path src.experiments
-cmd="python -m src.testAudio \
+cmd="python -m src.runChatbot \
     $exp \
     --data_dir $data_dir \
     --db_dir $db_dir \

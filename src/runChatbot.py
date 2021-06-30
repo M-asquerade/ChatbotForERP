@@ -1,3 +1,7 @@
+'''
+This is the main function of the chatbot for ERP
+
+'''
 import sys
 import io
 import os

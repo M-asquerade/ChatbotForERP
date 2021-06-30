@@ -22,6 +22,9 @@ RATE = 16000
 CHUNK = int(RATE / 10)  # 100ms
 
 class Chatbot():
+    '''
+    The class for the chatbot (speech recognition and text-to-SQL)
+    '''
     def __init__(self, speech_only = False, text_only = False, google_availablity = True):
         print("A Demo for erp system chatbot")
         #Initialize the part Speech to text
@@ -128,6 +131,10 @@ class Chatbot():
             sys.stdout.flush()
 
     def text_to_sql_loop(self):
+        '''
+        When text to SQL only, this function will be called.
+        :return:
+        '''
         sys.stdout.write('Enter a natural language question: ')
         sys.stdout.write('> ')
         sys.stdout.flush()
