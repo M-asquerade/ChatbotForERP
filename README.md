@@ -200,10 +200,8 @@ If you find the resource in this repository helpful, please cite
 
 # Instruction for chatbot
 
-To run the full voice chatbot for ERP, you need a trained model of text-to-SQL, a google access token for google speech recognition service and the database table schema for ERP.
-
 ## Files to prepare to run the chatbot
-
+To run the chatbot with full function, you need the database schema, the google access token and athe text-to-SQL model.
 
 ### Model
 Find the model of the text-to-SQL which ends with .tar and move it into the model directory.<br>
@@ -219,7 +217,7 @@ The google_access directory should only include one file(one access).
 mv google_access/ src/chatbotErp
 ```
 
-## #Database schema
+### Database schema
 The database schema should be in json format and be the same as the format of Spider schema.
 ```
 mv table_erp.json data/
@@ -238,7 +236,7 @@ When the speech recognition is not available or we want to test the text-to-SQL 
 ./experiment-bridge.sh configs/bridge/spider-bridge-bert-large.sh --demo_erp 1 --checkpoint_path ./model/model-best.66.tar --text_to_sql_only 1
 ```
 
-### Apply only speech recognitino
+### Apply only speech recognition
 When the connnection to google is needed, run the following code.
 ```
 ./experiment-bridge.sh configs/bridge/spider-bridge-bert-large.sh --demo_erp 1 --checkpoint_path ./model/model-best.66.tar --recognition_only 1
