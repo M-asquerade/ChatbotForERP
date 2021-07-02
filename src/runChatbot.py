@@ -58,6 +58,9 @@ assert(args.model_id is not None)
 
 
 def run_chatbot(args):
+    '''
+    The main function of chatbot
+    '''
     cs_args.gpu = args.gpu
     with torch.set_grad_enabled(args.train or args.search_random_seed or args.grid_search or args.fine_tune):
         get_model_dir(args)
