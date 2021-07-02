@@ -7,7 +7,7 @@ from google.cloud import speech
 from src.parse_args import args
 from src.trans_checker.args import args as cs_args
 from src.data_processor.schema_graph import SchemaGraph
-from src.chatbotErp.MicrophoneStream import MicrophoneStream
+from src.speech_recognition.MicrophoneStream import MicrophoneStream
 from src.demos.demos import Text2SQLWrapper
 
 #Chat state code

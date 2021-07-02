@@ -2,7 +2,7 @@
 
 export PYTHONPATH="`pwd`;$PYTHONPATH"
 
-google_access_dir="./src/chatbotErp/google_access/"
+google_access_dir="./src/speech_recognition/google_access/"
 google_access_file=""
 speech_rec_flag=1
 

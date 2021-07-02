@@ -14,7 +14,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '{}'.format(args.gpu)
 from src.data_processor.path_utils import get_model_dir
 from src.trans_checker.args import args as cs_args
 from src.semantic_parser.learn_framework import EncoderDecoderLFramework
-from src.chatbotErp.Chatbot import Chatbot
+from src.chatbot_conversation.Chatbot import Chatbot
 import src.utils.utils as utils
 
 

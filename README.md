@@ -214,7 +214,7 @@ mv model-best.66.tar model/
 Move the access token into a directory google_access and move it into chatbotErp.<br>
 The google_access directory should only include one file(one access).
 ```
-mv google_access/ src/chatbotErp
+mv google_access/ src/speech_recognition
 ```
 
 ### Database schema
